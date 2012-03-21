@@ -1,0 +1,12 @@
+/maps/dnils/completion/testcases/4.cpp
+6 
+9
+#include <vector>
+#include "TestClass.h"
+
+int main() {
+    TestClass apa;
+    apa.
+}
+
+

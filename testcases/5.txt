@@ -1,0 +1,11 @@
+/maps/dnils/completion/testcases/1.cpp
+5 
+9
+#include <vector>
+
+int main() {
+    std::vector<int> apa;
+    apa.pu
+}
+
+

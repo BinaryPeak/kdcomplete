@@ -1,0 +1,7 @@
+OSX installation instructions
+-----------------------------
+Install libclang.dylib et al:
+
+brew install --with-clang --all-targets --rtti --universal --jit llvm
+
+Takes about 16 minutes on my MBP.

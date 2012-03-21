@@ -1,0 +1,22 @@
+/maps/dnils/completion/testcases/2.cpp
+17 
+9
+#include <cstdio>
+#include <boost/cast.hpp>
+#include <boost/lexical_cast.hpp>
+#include <boost/bind.hpp>
+#include <boost/array.hpp>
+#include <boost/signal.hpp>
+#include <boost/function.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/noncopyable.hpp>
+#include <boost/aligned_storage.hpp>
+#include <boost/enable_shared_from_this.hpp>
+#include <vector>
+
+int main() {
+    int apa = boost::lexical_cast<int>("321");
+    
+    boost::
+
+}
