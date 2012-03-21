@@ -15,15 +15,12 @@ def format_results(res):
     
     for result in res.results:
         word = filter(lambda x: x.isKindTypedText(), result.string)
-        print word
         
         if word != None and len(word) > 0:
             word = word[0].spelling
             returnValue = filter(lambda x: x.isKindResultType(), result.string)
             placeholders = filter(lambda x: x.isKindPlaceHolder(), result.string)
             placeholders = map(lambda x: x.spelling, placeholders)
-
-
                           
             if not word in valid_completions:
                 tmp = {"word" : word, "overloads" : []}
@@ -35,6 +32,7 @@ def format_results(res):
                 valid_completions[word]["overloads"].append(overload)
                 
     valid_completions = sorted(valid_completions.values(), key=lambda c: c["word"])
+    
     return json.dumps(valid_completions)
 
 def handle_completion(c_file, c_line, c_col, c_content):
@@ -49,7 +47,7 @@ def handle_completion(c_file, c_line, c_col, c_content):
     flags = TranslationUnit.PrecompiledPreamble | TranslationUnit.CXXPrecompiledPreamble # | TranslationUnit.CacheCompletionResults
 
     candidate,args = find_flags.flags_for_file(c_file)
-    print args
+
     if candidate != None:
         os.chdir(os.path.dirname(candidate))
     

@@ -6,6 +6,7 @@
 (setq kdc-result-help nil)
 (setq kdc-completion-point nil)
 (setq kdc-temp-file "/tmp/completion.txt")
+(setq kdc-server-proc nil)
 
 (if load-file-name
     (setq kdc-dir (file-name-directory load-file-name))
@@ -106,12 +107,32 @@
   "Starts the client process for a completion."
   (let (
 	(cc-proc 
-	 (start-process "completion" "*Messages*" 
+	 (start-process "completion-client" "*Messages*" 
 			(concat kdc-dir "client.py") kdc-temp-file
 			)))
     
     (set-process-filter cc-proc 'kdc-completion-stash-filter)
     (set-process-sentinel cc-proc 'kdc-completion-sentinel)
+    (set-process-query-on-exit-flag cc-proc nil)
+    )
+  )
+
+(defun kdc-server-sentinel (proc event)
+  "Called whenever the server proc exits"
+  (setq kdc-server-proc nil)
+  )
+
+(defun kdc-start-server-if-necessary ()
+  "If the server is not started, start it."
+
+  (when (not kdc-server-proc)
+    (setq kdc-server-proc
+	  (start-process "completion-server" "*Messages*" 
+			 (concat kdc-dir "server.py") 
+			 ))
+
+    (set-process-sentinel kdc-server-proc 'kdc-server-sentinel)
+    (set-process-query-on-exit-flag kdc-server-proc nil)
     )
   )
 
@@ -119,6 +140,8 @@
   "Attempts to initiate a completion. If data for given point already available, "
   "return it."
   (interactive)  
+
+  (kdc-start-server-if-necessary)
 
   (if (and (not (eq ac-point (point)))
 	   (eq kdc-completion-point ac-point))

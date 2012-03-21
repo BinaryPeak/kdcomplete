@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import zmq
 import sys
 import completion
