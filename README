@@ -1,7 +1,48 @@
+Introduction
+------------
+
+The primary driving force behind this library was the introduction of clang and
+LLVM. I believe that having an open, extensible and modular high level compiler
+architecture will bring forth a new generation of tools for native languages.
+This opens up the possibility of providing modern code editing functionality to
+traditional editors.
+
+My editor of choice is Emacs. I tend to use auto-complete.el with completion as
+you type which is a pretty similar setup to that of modern IDE's. There are
+several clang completion backends available for Emacs, some implemented as
+backends to auto-complete, but they all suffer from a serious drawback, which
+is that Emacs does not have a good way of performing threaded tasks. 
+
+This is likely a design decision which simplifies the Emacs lisp environment
+considerably. Since you'll have to invoke an external process to get clang results, most clang
+completion extensions for Emacs will hang the user interface for up to several
+hundred milliseconds, freezing the cursor on every possible completion point.
+
+I think this is very distracting, so I came up with a scheme to side-step this
+limitation. While Emacs does not support threads, it does support asynchronous
+processes. The output from these asynchronous processes can be collected at
+idle points in the run loop, which allows us to marshal the work to the background.
+This means that you can freely type and you'll only see completion suggestions
+when  you stop at a completion point.
+
+The architecture depends on two standalone Python programs. One is the
+completion server (implemented in server.py), and the other one is the
+completion client (implemented in client.py) that talks to the server. 
+
+The server relies on the completion.py module which interfaces the libclang
+dynamic library through its wonderful Python binding. There is also an Emacs
+Lisp module (kdcomplete.el) which implements autocomplete sources for the library.
+
+
 OSX installation instructions
 -----------------------------
 Install libclang.dylib et al:
 
 brew install --with-clang --all-targets --rtti --universal --jit llvm
 
-Takes about 16 minutes on my MBP.
+Install zmq:
+
+brew install zmq
+
+Add the kdcomplete-directory to your Emacs lisp load path. Load the library. 
+
