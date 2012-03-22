@@ -12,7 +12,7 @@ def format_results(res):
     ret = ""
 
     valid_completions = dict()
-    
+
     for result in res.results:
         word = filter(lambda x: x.isKindTypedText(), result.string)
         
@@ -21,16 +21,25 @@ def format_results(res):
             returnValue = filter(lambda x: x.isKindResultType(), result.string)
             placeholders = filter(lambda x: x.isKindPlaceHolder(), result.string)
             placeholders = map(lambda x: x.spelling, placeholders)
-                          
+
+            parens = filter(lambda x: x.isKindLeftParen() or x.isKindRightParen(), 
+                            result.string)
+
             if not word in valid_completions:
-                tmp = {"word" : word, "overloads" : []}
-                valid_completions[word] = tmp
+                completion = {"word" : word, "overloads" : []}
+
+                if len(parens) == 0:
+                    completion["type"] = "variable"
+                else:
+                    completion["type"] = "function"
+
+                valid_completions[word] = completion
 
             if len(returnValue) > 0:
                 overload = {"return_value" : returnValue[0].spelling,
                             "arguments" : placeholders}
                 valid_completions[word]["overloads"].append(overload)
-                
+
     valid_completions = sorted(valid_completions.values(), key=lambda c: c["word"])
     
     return json.dumps(valid_completions)

@@ -4,13 +4,16 @@ import zmq
 
 if len(sys.argv) > 1:
     filename = sys.argv[1]   
-else:
-    filename = "/maps/dnils/completion/testcases/1.txt"
+
+port = 5556
+
+if len(sys.argv) > 2:
+    port = int(sys.argv[2])
 
 context = zmq.Context()
 socket = context.socket(zmq.REQ)
 
-socket.connect ("tcp://localhost:5556")
+socket.connect ("tcp://localhost:%d" % port)
 
 content = open(filename, "r").read()
 socket.send(content)

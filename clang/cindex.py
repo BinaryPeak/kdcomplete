@@ -1195,6 +1195,12 @@ class CompletionChunk:
         else:
           None
 
+    def isKindLeftParen(self):
+      return self.kind == completionChunkKindMap[6]
+
+    def isKindRightParen(self):
+      return self.kind == completionChunkKindMap[7]
+
     def isKindOptional(self):
       return self.kind == completionChunkKindMap[0]
 

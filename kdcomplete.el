@@ -65,12 +65,41 @@
   	 items
   	 )))
 
+(defun kdc-create-overloads (items)
+  (setq kdc-result-overloads
+  	(mapcar
+  	 (lambda (completion) 
+  	   ;; For each completion, create alist pair	   
+  	   (cons
+	    (cdr (assoc 'word completion))
+	     ;; Create a list of strings with (<param>..) syntax
+	     (mapcar
+	      (lambda (overload)
+		(if (string-equal (cdr (assoc 'type completion)) "function")
+		    (concat 
+		     "("
+		     (mapconcat 'identity (cdr (assoc 'arguments overload)) ", ")
+		     ")")
+		  ""
+		  )		
+		)
+	      (cdr (assoc 'overloads completion))
+	      )))
+  	 items
+  	 ))
+  kdc-result-overloads
+  )
+
 (defun kdc-extract-completions (str)
   "Given a JSON reply from the server, create help alist and completion list"
+  ;; (setq str kdc-result-string)
+
+  (setq str kdc-result-string)
   (setq kdc-result-completions (json-read-from-string str))
 
+  (kdc-create-overloads kdc-result-completions)
   (kdc-create-help kdc-result-completions)
-
+  
   ;; Strip everything but the completion word for the completion list
   (setq kdc-result-completions 
 	(mapcar (lambda (arg) (cdr (assoc 'word arg))) kdc-result-completions))
@@ -177,14 +206,64 @@
       ;; (ac-prefix-symbol)
       ))
 
+(defun kdc-function-overload-candidates ()
+  (let (
+	(complete-str (substring-no-properties (cdr ac-last-completion)))
+	)
+
+    (cdr (assoc complete-str kdc-result-overloads))
+    )
+)
+
+(defun kdc-member-action ()
+  (let (
+	(complete-str (substring-no-properties (cdr ac-last-completion)))
+	)
+     (setq kdc-ac-template-point (point))
+     (ac-complete-kdc-function-overload)    
+    )
+)
+
+(defun kdc-template-action ()
+
+  (let (
+  	(end-p (point))
+  	(complete-str (substring-no-properties (cdr ac-last-completion)))
+  	)
+
+    (if (and  (not (string-equal "()" complete-str))
+	      (not (string-equal "" complete-str))
+	      )
+      (progn 
+  	(setq complete-str (replace-regexp-in-string "(" "(${" complete-str))
+  	(setq complete-str (replace-regexp-in-string ")" "})" complete-str))
+  	(setq complete-str (replace-regexp-in-string ", " "}, ${" complete-str))
+
+  	(message complete-str)
+  	(goto-char kdc-ac-template-point)
+  	(yas/expand-snippet complete-str (point) end-p)
+
+  	)
+      )
+    )
+  )
+
+;; The completion source that if necessary invokes a completion client request.
+(ac-define-source kdc-function-overload
+  '((candidates . (kdc-function-overload-candidates))
+    (prefix . point)
+    (requires . 0)
+    (action . kdc-template-action)
+    (symbol . "f")))
+ 
 ;; The completion source that if necessary invokes a completion client request.
 (ac-define-source kdc-member
   '((candidates . (kdc-trigger-completion ac-prefix))
     (prefix . kdc-prefix-member)
     (requires . 0)
+    (action . kdc-member-action)
     (document . kdc-candidate-document)
     (symbol . "m")))
- 
 
 ;; The static completion source that's just used for showing a completion list
 ;; without invoking a completion client request. Used by client request process
@@ -194,9 +273,12 @@
   '((candidates . (ac-kdc-static-candidates ac-prefix))
     (prefix . kdc-prefix-member)
     (requires . 0)
+    (action . kdc-member-action)
     (document . kdc-candidate-document)
     (symbol . "m")))
-
+    
 (defun ac-cc-mode-setup ()
   (setq ac-sources (append '(ac-source-kdc-member) ac-sources 
 			   )))
+
+(setq ac-expand-on-auto-complete nil)

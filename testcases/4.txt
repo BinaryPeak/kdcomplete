@@ -1,11 +1,10 @@
-/maps/dnils/completion/testcases/4.cpp
-6 
+/maps/dnils/completion/testcases/1.cpp
+5 
 9
 #include <vector>
-#include "TestClass.h"
-
+struct Test {int x; int y;};
 int main() {
-    TestClass apa;
+    Test apa;
     apa.
 }
 
