@@ -13,25 +13,41 @@ def format_results(res):
 
     valid_completions = dict()
 
+    i = 0
     for result in res.results:
         word = filter(lambda x: x.isKindTypedText(), result.string)
-        
+
         if word != None and len(word) > 0:
+            i = i + 1
+
+            if i > 2000:
+                break
+
             word = word[0].spelling
             returnValue = filter(lambda x: x.isKindResultType(), result.string)
             placeholders = filter(lambda x: x.isKindPlaceHolder(), result.string)
             placeholders = map(lambda x: x.spelling, placeholders)
 
-            parens = filter(lambda x: x.isKindLeftParen() or x.isKindRightParen(), 
+            parens = filter(lambda x: x.isKindLeftParen() or
+                            x.isKindRightParen(), 
                             result.string)
 
             if not word in valid_completions:
                 completion = {"word" : word, "overloads" : []}
 
-                if len(parens) == 0:
+                if len(parens) == 0 and word.find(":") == -1:
                     completion["type"] = "variable"
                 else:
-                    completion["type"] = "function"
+                    if len(returnValue) > 0:
+                        completion["type"] = "function"
+                    else:
+                        # A function template expansion. Use all symbols in
+                        # one long string
+                        completion["type"] = "word"
+                        completion["word"] = "apa"
+                        completion["word"] = ''.join(map(lambda x: x.spelling, result.string))
+
+                        
 
                 valid_completions[word] = completion
 
@@ -41,7 +57,7 @@ def format_results(res):
                 valid_completions[word]["overloads"].append(overload)
 
     valid_completions = sorted(valid_completions.values(), key=lambda c: c["word"])
-    
+
     return json.dumps(valid_completions)
 
 def handle_completion(c_file, c_line, c_col, c_content):

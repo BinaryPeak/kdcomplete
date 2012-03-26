@@ -41,6 +41,13 @@
       msg
       )))
 
+(defun kdc-create-arg-string (arg-list)  
+  (if (eq major-mode 'objc-mode)
+      (mapconcat 'identity arg-list ":")
+    (concat "(" (mapconcat 'identity arg-list ", ") ")")
+    )
+  )
+
 (defun kdc-create-help (items)
   "Creates the help alist from a list of completions with return types and overloads."
   (setq kdc-result-help
@@ -55,9 +62,8 @@
 	      (lambda (overload)
 	    	 (concat (cdr (assoc 'return_value overload)) " "
 	    		 (cdr (assoc 'word completion))
-	    		 "("
-	    		 (mapconcat 'identity (cdr (assoc 'arguments overload)) ", ")
-	    		 ")")
+	    		 (kdc-create-arg-string (cdr (assoc 'arguments overload)))
+			 )
 	    	 )
 	      (cdr (assoc 'overloads completion))
 	      "\n"
@@ -76,10 +82,7 @@
 	     (mapcar
 	      (lambda (overload)
 		(if (string-equal (cdr (assoc 'type completion)) "function")
-		    (concat 
-		     "("
-		     (mapconcat 'identity (cdr (assoc 'arguments overload)) ", ")
-		     ")")
+		    (kdc-create-arg-string (cdr (assoc 'arguments overload)))
 		  ""
 		  )		
 		)
@@ -94,7 +97,6 @@
   "Given a JSON reply from the server, create help alist and completion list"
   ;; (setq str kdc-result-string)
 
-  (setq str kdc-result-string)
   (setq kdc-result-completions (json-read-from-string str))
 
   (kdc-create-overloads kdc-result-completions)
@@ -103,6 +105,11 @@
   ;; Strip everything but the completion word for the completion list
   (setq kdc-result-completions 
 	(mapcar (lambda (arg) (cdr (assoc 'word arg))) kdc-result-completions))
+
+  ;; Append empty element to force showing of menu (should be a better way)
+  (if (eq (length kdc-result-completions) 1 )
+      (setq kdc-result-completions (nreverse (cons "" kdc-result-completions)))
+      )
 
   kdc-result-completions
   )
@@ -121,6 +128,7 @@
   "Called when asynchronous client process finished. Triggers completion list."
   (setq kdc-loading-results nil)
   (setq kdc-result-completions (kdc-extract-completions kdc-result-string))
+  (message "Triggering static")
   (ac-complete-kdc-static)
   )
 
@@ -136,7 +144,7 @@
   "Starts the client process for a completion."
   (let (
 	(cc-proc 
-	 (start-process "completion-client" "*Messages*" 
+	 (start-process "completion-client" "*kdcomplete*" 
 			(concat kdc-dir "client.py") kdc-temp-file
 			)))
     
@@ -156,7 +164,7 @@
 
   (when (not kdc-server-proc)
     (setq kdc-server-proc
-	  (start-process "completion-server" "*Messages*" 
+	  (start-process "completion-server" "*kdcomplete*" 
 			 (concat kdc-dir "server.py") 
 			 ))
 
@@ -168,27 +176,30 @@
 (defun kdc-trigger-completion (prefix)
   "Attempts to initiate a completion. If data for given point already available, "
   "return it."
-  (interactive)  
+  (interactive)    
+
 
   (kdc-start-server-if-necessary)
 
   (if (and (not (eq ac-point (point)))
-	   (eq kdc-completion-point ac-point))
+  	   (eq kdc-completion-point ac-point))
       ;; Completions already available for point, no need to re-invoke client
       kdc-result-completions
     (if (eq kdc-loading-results nil)
-	(progn 
-	  (kdc-init-completion-request)
-	  (kdc-trigger-client-process)
-	  ))
+  	(progn 
+  	  (kdc-init-completion-request)
+  	  (kdc-trigger-client-process)
+  	  ))
     nil    
-    ))
+    )
+)
 
 (defun ac-kdc-static-candidates(p)
   (if kdc-loading-results
       '("Loading.." "")
     kdc-result-completions
-    ))
+    )
+)
 
 (defun ac-prefix-c-namespace ()
   "C-like languages ::."
@@ -199,12 +210,53 @@
   "Simply returns the associated help for a completion."
   (cdr (assoc s kdc-result-help)))
 
+(defun kdc-objc-p ()
+  (eq major-mode 'objc-mode)
+  )
+
+(defun ac-prefix-objc ()
+  "Objective C, [var ."
+  (let ((start-point (point)))
+    (if (re-search-backward "\\(\\[\[a-zA-Z0-9][_a-zA-Z0-9]*\\)\\( +[_a-zA-Z0-9]*\\)\\=" nil t)
+	(+ 1 (match-beginning 2)))
+    )
+  )
+
+(defun ac-prefix-objc-selector ()
+  "Objective C selector, -([var] ) ."
+  (let ((start-point (point)))
+    (if (re-search-backward "-([a-zA-Z0-9][<>_a-zA-Z0-9]*\\*?)\\( *[_a-zA-Z0-9]*\\)\\=\\=" nil t)
+	(progn
+	  (+ 1 (match-beginning 1)))
+      )
+    )
+  )
+
 (defun kdc-prefix-member ()
   (or (ac-prefix-c-dot) 
       (ac-prefix-c-dot-ref) 
       (ac-prefix-c-namespace)
-      ;; (ac-prefix-symbol)
-      ))
+
+      (if (kdc-objc-p)
+      	(or      
+      	  (ac-prefix-objc)
+      	  (ac-prefix-objc-selector)
+      	  )
+      	)
+      )
+)
+
+;; (defun kdc-test-prefix ()
+;;   (interactive)
+;;   ;; (ac-complete-kdc-static)
+;;   (ac-complete-kdc-member-loose)
+
+;;   (save-excursion
+;;     (print (ac-prefix-c-dot))
+;;     )
+;;   )
+
+;; (global-set-key (quote [67109092]) (quote kdc-test-prefix))
 
 (defun kdc-function-overload-candidates ()
   (let (
@@ -235,11 +287,19 @@
 	      (not (string-equal "" complete-str))
 	      )
       (progn 
-  	(setq complete-str (replace-regexp-in-string "(" "(${" complete-str))
-  	(setq complete-str (replace-regexp-in-string ")" "})" complete-str))
-  	(setq complete-str (replace-regexp-in-string ", " "}, ${" complete-str))
+	(if (kdc-objc-p)
+	    (progn
+	      (setq complete-str (replace-regexp-in-string "(" "${(" complete-str))
+	      (setq complete-str (replace-regexp-in-string ")" ")}" complete-str))
+	      )
+	  (progn
+	    (setq complete-str (replace-regexp-in-string "(" "(${" complete-str))
+	    (setq complete-str (replace-regexp-in-string ")" "})" complete-str))
+	    (setq complete-str (replace-regexp-in-string ", " "}, ${" complete-str))
+	    )
+	  )
 
-  	(message complete-str)
+
   	(goto-char kdc-ac-template-point)
   	(yas/expand-snippet complete-str (point) end-p)
 
@@ -268,7 +328,6 @@
 ;; The static completion source that's just used for showing a completion list
 ;; without invoking a completion client request. Used by client request process
 ;; sentinel.
-
 (ac-define-source kdc-static
   '((candidates . (ac-kdc-static-candidates ac-prefix))
     (prefix . kdc-prefix-member)
@@ -276,7 +335,18 @@
     (action . kdc-member-action)
     (document . kdc-candidate-document)
     (symbol . "m")))
-    
+
+;; Just used for testing
+(ac-define-source kdc-member-loose
+  '((candidates . (kdc-trigger-completion ac-prefix))
+    (prefix . point)
+    (requires . 0)
+    (action . kdc-member-action)
+    (document . kdc-candidate-document)
+    (symbol . "m")))
+
+
+   
 (defun ac-cc-mode-setup ()
   (setq ac-sources (append '(ac-source-kdc-member) ac-sources 
 			   )))
