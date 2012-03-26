@@ -23,5 +23,9 @@ while True:
     message = socket.recv()
     res = completion.handle_completion_str(message)
     socket.send(res)
+
     if run_once:
+        print "Exiting"
         break
+
+
