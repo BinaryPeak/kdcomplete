@@ -48,8 +48,6 @@ def format_result(result, typed_texts, valid_completions):
                         placeholders[i] = "%s%s" % (typed_texts[i].spelling, placeholders[i])
 
                     print word, "function-call"
-                else:
-                    print ":-(((())))"
             else:
                 # A function template expansion. Use all symbols in
                 # one long string
