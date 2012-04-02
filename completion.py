@@ -7,6 +7,64 @@ import json
 
 index = Index.create()
 translation_units = dict()
+# [ {"delay", "(NSTimeInterval)"}, {animateDelay, "(NSTimeInterval)"}]
+# "delay:(NSTimeInterval)"
+# void doSomething(/* the width of something*/ int x )
+# .cpp:  void do(int x) 
+def format_result(result, typed_texts, valid_completions):
+    word = typed_texts[0].spelling
+
+    placeholders = []
+    returnValue = None
+
+    for item in result.string:
+        if item.isKindResultType():
+            returnValue = item.spelling
+        elif item.isKindPlaceHolder():
+            placeholders.append(item.spelling)
+    
+    parens = filter(lambda x: x.isKindLeftParen() or
+                    x.isKindRightParen(), 
+                    result.string)
+
+    if word == "animateWithDuration:":
+        print word, result.string
+
+
+    if not word in valid_completions:
+        completion = {"word" : word, "overloads" : []}
+
+        if len(parens) == 0 and word.find(":") == -1:
+            completion["type"] = "variable"
+        else:
+            if returnValue is not None:
+                completion["type"] = "function-call"
+
+                if word.find(":") != -1:
+                    # Objc- should prefix all argument types with argument
+                    # names after first one
+                    
+                    for i in xrange(1,len(placeholders)):
+                        placeholders[i] = "%s%s" % (typed_texts[i].spelling, placeholders[i])
+
+                    print word, "function-call"
+                else:
+                    print ":-(((())))"
+            else:
+                # A function template expansion. Use all symbols in
+                # one long string
+                print word, "function-definition"
+                completion["type"] = "function-definition"
+                completion["word"] = ''.join(map(lambda x: x.spelling, result.string))
+
+        valid_completions[word] = completion
+
+    if returnValue is not None:
+        # print word, "is a function definition, overloads", placeholders
+        # print result.string
+        overload = {"return_value" : returnValue,
+                    "arguments" : placeholders}
+        valid_completions[word]["overloads"].append(overload)
 
 def format_results(res):
     ret = ""
@@ -15,50 +73,19 @@ def format_results(res):
 
     i = 0
     for result in res.results:
-        word = filter(lambda x: x.isKindTypedText(), result.string)
+        typed_texts = filter(lambda x: x.isKindTypedText(), result.string)
 
-        if word != None and len(word) > 0:
+        if typed_texts != None and len(typed_texts) > 0:
             i = i + 1
 
             if i > 2000:
                 break
 
-            word = word[0].spelling
-            returnValue = filter(lambda x: x.isKindResultType(), result.string)
-            placeholders = filter(lambda x: x.isKindPlaceHolder(), result.string)
-            placeholders = map(lambda x: x.spelling, placeholders)
-
-            parens = filter(lambda x: x.isKindLeftParen() or
-                            x.isKindRightParen(), 
-                            result.string)
-
-            if not word in valid_completions:
-                completion = {"word" : word, "overloads" : []}
-
-                if len(parens) == 0 and word.find(":") == -1:
-                    completion["type"] = "variable"
-                else:
-                    if len(returnValue) > 0:
-                        completion["type"] = "function"
-                    else:
-                        # A function template expansion. Use all symbols in
-                        # one long string
-                        completion["type"] = "word"
-                        completion["word"] = "apa"
-                        completion["word"] = ''.join(map(lambda x: x.spelling, result.string))
-
-                        
-
-                valid_completions[word] = completion
-
-            if len(returnValue) > 0:
-                overload = {"return_value" : returnValue[0].spelling,
-                            "arguments" : placeholders}
-                valid_completions[word]["overloads"].append(overload)
+            format_result(result, typed_texts, valid_completions)
 
     valid_completions = sorted(valid_completions.values(), key=lambda c: c["word"])
 
-    return json.dumps(valid_completions)
+    return json.dumps(valid_completions, indent = True)
 
 def handle_completion(c_file, c_line, c_col, c_content):
     global index
@@ -74,6 +101,7 @@ def handle_completion(c_file, c_line, c_col, c_content):
     candidate,args = find_flags.flags_for_file(c_file)
 
     if candidate != None:
+        print args
         os.chdir(os.path.dirname(candidate))
     
     if c_file in translation_units:

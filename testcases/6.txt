@@ -1,0 +1,13 @@
+/tmp/test.m
+5
+22
+#import <Foundation/Foundation.h>
+
+int main(int argc, char *argv[])
+{
+    NSArray* array = [NSArray ];
+    [array ]
+    
+    return 0;
+}
+

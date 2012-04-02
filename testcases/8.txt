@@ -1,0 +1,26 @@
+/maps/dnils/iptest/test.m
+14
+20
+#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+
+@interface Controller : UIViewController<UITableViewDataSource,
+UITableViewDelegate>
+
+
+@end
+
+
+
+@implementation Controller
+
+-(UITableViewCell*)
+
+@end
+
+int main(int argc, char *argv[])
+{
+    [UIImage imageNamed:@"apa.png"];
+    return 0;
+}
+

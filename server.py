@@ -8,6 +8,7 @@ run_once = False
 if len(sys.argv) > 1 and sys.argv[1] == "--run_once":
     run_once = True
 
+run_once = True
 port = 5556
 
 if len(sys.argv) > 2:

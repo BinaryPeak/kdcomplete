@@ -43,7 +43,7 @@
 
 (defun kdc-create-arg-string (arg-list)  
   (if (eq major-mode 'objc-mode)
-      (mapconcat 'identity arg-list ":")
+      (mapconcat 'identity arg-list " ")
     (concat "(" (mapconcat 'identity arg-list ", ") ")")
     )
   )
@@ -71,17 +71,28 @@
   	 items
   	 )))
 
+(defun kdc-create-completion-types (items)
+  (setq kdc-result-types
+	(mapcar
+	 (lambda (completion) 
+	   (cons (cdr (assoc 'word completion)) (cdr (assoc 'type completion)))
+	   )
+	 items
+	 )
+	)
+  )
+
 (defun kdc-create-overloads (items)
   (setq kdc-result-overloads
   	(mapcar
   	 (lambda (completion) 
   	   ;; For each completion, create alist pair	   
-  	   (cons
+  	  (cons
 	    (cdr (assoc 'word completion))
 	     ;; Create a list of strings with (<param>..) syntax
 	     (mapcar
 	      (lambda (overload)
-		(if (string-equal (cdr (assoc 'type completion)) "function")
+		(if (string-equal (cdr (assoc 'type completion)) "function-call")
 		    (kdc-create-arg-string (cdr (assoc 'arguments overload)))
 		  ""
 		  )		
@@ -99,6 +110,7 @@
 
   (setq kdc-result-completions (json-read-from-string str))
 
+  (kdc-create-completion-types kdc-result-completions)
   (kdc-create-overloads kdc-result-completions)
   (kdc-create-help kdc-result-completions)
   
@@ -128,9 +140,13 @@
   "Called when asynchronous client process finished. Triggers completion list."
   (setq kdc-loading-results nil)
   (setq kdc-result-completions (kdc-extract-completions kdc-result-string))
-  (message "Triggering static")
-  (ac-complete-kdc-static)
+
+  (if kdc-force-loose
+      (ac-complete-kdc-static-loose)
+    (ac-complete-kdc-static)
+    ) 
   )
+
 
 (defun kdc-init-completion-request()
   "Sets up the completion state so that the completion client can be invoked."
@@ -166,6 +182,7 @@
     (setq kdc-server-proc
 	  (start-process "completion-server" "*kdcomplete*" 
 			 (concat kdc-dir "server.py") 
+			 ;; (concat kdc-dir "server.py")  "--run-once"
 			 ))
 
     (set-process-sentinel kdc-server-proc 'kdc-server-sentinel)
@@ -173,11 +190,12 @@
     )
   )
 
-(defun kdc-trigger-completion (prefix)
+(defun kdc-trigger-completion (prefix loose)
   "Attempts to initiate a completion. If data for given point already available, "
   "return it."
   (interactive)    
 
+  (setq kdc-force-loose loose)
 
   (kdc-start-server-if-necessary)
 
@@ -194,7 +212,7 @@
     )
 )
 
-(defun ac-kdc-static-candidates(p)
+(defun kdc-static-candidates(p)
   (if kdc-loading-results
       '("Loading.." "")
     kdc-result-completions
@@ -217,15 +235,22 @@
 (defun ac-prefix-objc ()
   "Objective C, [var ."
   (let ((start-point (point)))
-    (if (re-search-backward "\\(\\[\[a-zA-Z0-9][_a-zA-Z0-9]*\\)\\( +[_a-zA-Z0-9]*\\)\\=" nil t)
-	(+ 1 (match-beginning 2)))
+    (when (re-search-backward "\\(\\[\[a-zA-Z0-9][._a-zA-Z0-9]*\\)\\( +[_a-zA-Z0-9]*\\)\\=" nil t)
+      (+ 1 (match-beginning 2)))
+    )
+  )
+
+(defun ac-prefix-objc-selector-2 ()
+  "Objective C selector, -(] ] ) ."
+  (when (re-search-backward "\\(\\]\\) *[<>_a-zA-Z0-9]*\\=" nil t)
+    (+ 2 (match-beginning 1))    
     )
   )
 
 (defun ac-prefix-objc-selector ()
   "Objective C selector, -([var] ) ."
   (let ((start-point (point)))
-    (if (re-search-backward "-([a-zA-Z0-9][<>_a-zA-Z0-9]*\\*?)\\( *[_a-zA-Z0-9]*\\)\\=\\=" nil t)
+    (if (re-search-backward "- *([a-zA-Z0-9][<>_a-zA-Z0-9]*\\*?)\\( *[_a-zA-Z0-9]*\\)\\=\\=" nil t)
 	(progn
 	  (+ 1 (match-beginning 1)))
       )
@@ -241,22 +266,23 @@
       	(or      
       	  (ac-prefix-objc)
       	  (ac-prefix-objc-selector)
+	  (ac-prefix-objc-selector-2)
       	  )
       	)
       )
 )
 
-;; (defun kdc-test-prefix ()
-;;   (interactive)
-;;   ;; (ac-complete-kdc-static)
-;;   (ac-complete-kdc-member-loose)
+(defun kdc-test-prefix ()
+  (interactive)
+  ;; (ac-complete-kdc-member)
+  (ac-complete-kdc-member-loose)
 
-;;   (save-excursion
-;;     (print (ac-prefix-c-dot))
-;;     )
-;;   )
+  ;; (save-excursion
+  ;;   (print (ac-prefix-objc-selector-2))
+  ;;   )
+  )
 
-;; (global-set-key (quote [67109092]) (quote kdc-test-prefix))
+(global-set-key (quote [67109092]) (quote kdc-test-prefix))
 
 (defun kdc-function-overload-candidates ()
   (let (
@@ -271,39 +297,51 @@
   (let (
 	(complete-str (substring-no-properties (cdr ac-last-completion)))
 	)
-     (setq kdc-ac-template-point (point))
-     (ac-complete-kdc-function-overload)    
+
+    (setq ac-parent-completion complete-str)
+    (setq kdc-ac-template-point (point))
+    (ac-complete-kdc-function-overload)    
     )
 )
 
-(defun kdc-template-action ()
+(defun kdc-template-post-action ()
+  (remove-hook 'yas/after-exit-snippet-hook 'kdc-template-post-action)
+)
 
+(defun kdc-template-action ()
   (let (
   	(end-p (point))
   	(complete-str (substring-no-properties (cdr ac-last-completion)))
+	(complete-type (cdr (assoc ac-parent-completion kdc-result-types)))
   	)
 
     (if (and  (not (string-equal "()" complete-str))
 	      (not (string-equal "" complete-str))
 	      )
-      (progn 
-	(if (kdc-objc-p)
+	(progn 
+	  
+	  (if (kdc-objc-p)
+	      (progn
+		(setq complete-str (replace-regexp-in-string "(" "${(" complete-str))
+		(setq complete-str (replace-regexp-in-string ")" ")}" complete-str))
+		)
 	    (progn
-	      (setq complete-str (replace-regexp-in-string "(" "${(" complete-str))
-	      (setq complete-str (replace-regexp-in-string ")" ")}" complete-str))
+	      (setq complete-str (replace-regexp-in-string "(" "(${" complete-str))
+	      (setq complete-str (replace-regexp-in-string ")" "})" complete-str))
+	      (setq complete-str (replace-regexp-in-string ", " "}, ${" complete-str))
 	      )
-	  (progn
-	    (setq complete-str (replace-regexp-in-string "(" "(${" complete-str))
-	    (setq complete-str (replace-regexp-in-string ")" "})" complete-str))
-	    (setq complete-str (replace-regexp-in-string ", " "}, ${" complete-str))
 	    )
+	  
+
+	  (goto-char kdc-ac-template-point)
+	  (when (string-equal complete-type "function-definition")
+	    (progn
+	      (add-hook 'yas/after-exit-snippet-hook 'kdc-template-post-action)
+	      )
+	    )
+	  (yas/expand-snippet complete-str (point) end-p)
+
 	  )
-
-
-  	(goto-char kdc-ac-template-point)
-  	(yas/expand-snippet complete-str (point) end-p)
-
-  	)
       )
     )
   )
@@ -318,7 +356,7 @@
  
 ;; The completion source that if necessary invokes a completion client request.
 (ac-define-source kdc-member
-  '((candidates . (kdc-trigger-completion ac-prefix))
+  '((candidates . (kdc-trigger-completion ac-prefix nil))
     (prefix . kdc-prefix-member)
     (requires . 0)
     (action . kdc-member-action)
@@ -329,17 +367,22 @@
 ;; without invoking a completion client request. Used by client request process
 ;; sentinel.
 (ac-define-source kdc-static
-  '((candidates . (ac-kdc-static-candidates ac-prefix))
+  '((candidates . (kdc-static-candidates ac-prefix))
     (prefix . kdc-prefix-member)
     (requires . 0)
     (action . kdc-member-action)
     (document . kdc-candidate-document)
     (symbol . "m")))
 
-;; Just used for testing
+(ac-define-source kdc-static-loose
+  '((candidates . (kdc-static-candidates ac-prefix))
+    (requires . 0)
+    (action . kdc-member-action)
+    (document . kdc-candidate-document)
+    (symbol . "m")))
+
 (ac-define-source kdc-member-loose
-  '((candidates . (kdc-trigger-completion ac-prefix))
-    (prefix . point)
+  '((candidates . (kdc-trigger-completion ac-prefix t))
     (requires . 0)
     (action . kdc-member-action)
     (document . kdc-candidate-document)
