@@ -24,5 +24,8 @@ Install zmq:
 
 brew install zmq
 
+Install zmq python bindings:
+easy_install pyzmq
+
 Add the kdcomplete-directory to your Emacs lisp load path. Load the library. 
 
